@@ -1,0 +1,10 @@
+/build/
+/.cache/
+/donjon/
+/*venv*/
+/.vscode/
+/tmp/
+
+__pycache__/*
+*.pyc
+/test.*

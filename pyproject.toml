@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=61", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "licocorne"
+dynamic = ["version", "readme"]
+
+description = "Donjon ICoCo Python implementation"
+requires-python = ">=3.6,<4"
+
+authors = [
+  { name = "R. Lenain", email = "roland.lenain@cea.fr" }
+]
+
+license = "BSD-3-Clause"
+
+keywords = ["couping", "medcoupling", "salome", "c3po"]
+
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+  "numpy>=1.19.5",
+  "medcoupling>=9.15",
+  "icoco",
+  "cle2000",
+  "lifo",
+  "lcm",
+  "pydantic"
+]
+
+[project.optional-dependencies]
+docs = [
+  "psutil==5.9.4",
+  "sphinx-rtd-theme==1.1.1",
+  "myst-parser==0.16.1",
+  "numpydoc==1.1.0",
+]
+
+test = [
+  "psutil==5.9.4",
+  "pylint>=2.13.9",
+  "pytest>=7.0.1",
+  "pytest-cov>=4.0.0",
+  "pytest-html>=3.2.0",
+  "pytest-sugar>=0.9.6",
+  "pytest-xdist>=3.0.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/roland-lenain/dragon-python"
+Source = "https://github.com/roland-lenain/dragon-python"
+Documentation = "https://dragon-python.readthedocs.io/en/latest/index.html"
+Issues = "https://github.com/roland-lenain/dragon-python/issues"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+licocorne = ["VERSION"]
+
+[tool.setuptools.dynamic]
+readme = {file = "src/README.md", content-type = "text/markdown"}
+
+[tool.setuptools_scm]
