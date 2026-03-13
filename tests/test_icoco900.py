@@ -18,7 +18,8 @@ def setup_config(working_dir: Path, name, data_dir: Path = None) -> Path:
     shutil.copytree(src=data_dir / proc_dir, dst=working_dir)
 
     data_file =icoco.DataFile(
-        procedure_directory=data_dir / proc_dir
+        procedure_directory=data_dir / proc_dir,
+        init_proc_name='IniPowCompo'
         )
 
     data_file_path = working_dir / "icoco_neutro_900.json"
@@ -59,29 +60,16 @@ def test():
     for densB in [500., 1000., 2000.]:
         results[densB] = compute_keff(problem, densB)
 
+    def critical_boron(problem):
 
-    def critical_boron(icoco, prec, target = 1.0):
+        problem.setInputStringValue(icoco.InputValue.STEADY_STATE_MODE, icoco.ValueEnum.SteadyStateMode.CRITCAL_BORON)
+        keff = compute_keff(problem, 1000.0)
+        cbore = problem.getOutputDoubleValue(icoco.OutputValue.BORON_FRACTION_PPM)
+        problem.setInputStringValue(icoco.InputValue.STEADY_STATE_MODE, icoco.ValueEnum.SteadyStateMode.STEADY_STATE)
+        return cbore, keff
 
-        conv = False
-        b_range = [0.0, 2000.0]
-        densB = 1000.0
-        while not conv:
-            keff = compute_keff(icoco, densB)
-            rho = (keff - target) / target * 1.e5
-            if -prec < rho < prec:
-                return densB
-            else:
-                if rho > 0.0:
-                    b_range[0] = densB
-                else:
-                    b_range[1] = densB
-                densB = (b_range[1] + b_range[0]) / 2.0
-                if abs(densB - b_range[0]) < 0.5 or abs(densB - b_range[1]) < 0.5:
-                    raise AssertionError(
-                        f"Critical boron can't be reached: pb={densB}, rho = {rho}")
-            print("convergence status:", conv, rho, keff, densB, flush=True)
-
-    results[critical_boron(problem, 1.0, 1.0)] = 1.0
+    cbore, keff = critical_boron(problem)
+    results[cbore] = keff
 
     print(f"results = {results}")
 
@@ -119,6 +107,11 @@ def test():
     drho = diff_effects(problem, 50.0, icoco.OutputField.D_COOL)
     print(f"water delta rho / d = {drho}")
     assert abs(28.18082459270954 - drho) < 1.0
+
+    compute_keff(problem, 500.0)
+    problem.setInputStringValue(icoco.InputValue.STEADY_STATE_MODE, icoco.ValueEnum.SteadyStateMode.CRITCAL_BORON)
+    keff = compute_keff(problem, 500.0)
+    assert abs(1.0 - keff) < 1.e-4
 
 if __name__ == "__main__":
     test()

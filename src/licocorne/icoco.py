@@ -12,22 +12,32 @@ from pydantic import BaseModel
 from . import procs, struct, name_enum
 from .procedures.compute_power import ComputePowerRunner
 from .procedures.set_boron import SetBoronRunner
+from .procedures.critical_boron import CriticalBoronRunner
 
 
 class DataFile(BaseModel):
     procedure_directory: Path
+    init_proc_name: str
 
+class ValueEnum:
+
+    class SteadyStateMode:
+        STEADY_STATE = "STEADY_STATE"
+        CRITCAL_BORON = "CRITCAL_BORON"
 
 class InputValue(name_enum.ICoCoNameEnum):
     FUEL_POWER_FRACTION = "FUEL_POWER_FRACTION"
     BORON_FRACTION_PPM = "BORON_FRACTION_PPM"
     POWER = "POWER"
 
+    STEADY_STATE_MODE = "STEADY_STATE_MODE"
+
 
 class OutputValue(name_enum.ICoCoNameEnum):
     FUEL_POWER_FRACTION = InputValue.FUEL_POWER_FRACTION
     BORON_FRACTION_PPM = InputValue.BORON_FRACTION_PPM
     POWER = InputValue.POWER
+    STEADY_STATE_MODE = InputValue.STEADY_STATE_MODE
 
     KEFF = "KEFF"
     REACTIVITY_STATIC = "REACTIVITY_STATIC"
@@ -92,9 +102,11 @@ class Problem(icoco.Problem):
                 #     print(entry.name)
 
         # Declare procdures
-        proc_init = procs.ProcedureRunner(procedure='IniPowCompo', working_directory=self._working_directory)
-        self._proc_solve = ComputePowerRunner(working_directory=self._working_directory)
+        proc_init = procs.ProcedureRunner(procedure=data_file.init_proc_name,
+                                          working_directory=self._working_directory)
+        self._proc_stead = ComputePowerRunner(working_directory=self._working_directory)
         self._proc_boron = SetBoronRunner(working_directory=self._working_directory)
+        self._proc_critb = CriticalBoronRunner(working_directory=self._working_directory)
 
         # Initialize
         proc_init.run(
@@ -132,6 +144,7 @@ class Problem(icoco.Problem):
         self._values[InputValue.FUEL_POWER_FRACTION] = 0.974
         self._values[InputValue.BORON_FRACTION_PPM] = 2000.0
         self._values[InputValue.POWER] = 17.3e6 # W
+        self._values[InputValue.STEADY_STATE_MODE] = ValueEnum.SteadyStateMode.STEADY_STATE
         return True
 
 
@@ -164,24 +177,41 @@ class Problem(icoco.Problem):
 
     def solveTimeStep(self) -> bool:
 
-        print("call SetBoron procedure", flush=True)
-        self._proc_boron.run(fmap=self._fmap,
-                             cbore=self._values[InputValue.BORON_FRACTION_PPM])
-        print("SetBoron execution completed", flush=True)
+        if self._values[InputValue.STEADY_STATE_MODE] == ValueEnum.SteadyStateMode.STEADY_STATE:
+            print("call SetBoron procedure", flush=True)
+            self._proc_boron.run(fmap=self._fmap,
+                                cbore=self._values[InputValue.BORON_FRACTION_PPM])
+            print("SetBoron execution completed", flush=True)
+            print("call PowField procedure", flush=True)
+            proc_solve = self._proc_stead
+            self._proc_stead.run(
+                fmap=self._fmap,
+                matex=self._matex,
+                flux=self._flux,
+                cpo=self._cpo,
+                track=self._track,
+                power=self._values[InputValue.POWER] * 1e-6,
+                cbore=self._values[InputValue.BORON_FRACTION_PPM],
+                )
+            print("PowField execution completed", flush=True)
+        elif self._values[InputValue.STEADY_STATE_MODE] == ValueEnum.SteadyStateMode.CRITCAL_BORON:
+            proc_solve = self._proc_critb
+            self._proc_critb.run(
+                fmap=self._fmap,
+                matex=self._matex,
+                flux=self._flux,
+                cpo=self._cpo,
+                track=self._track,
+                power=self._values[InputValue.POWER] * 1e-6,
+                cbore=self._values[InputValue.BORON_FRACTION_PPM],
+                target=1.0
+                )
+            self._values[InputValue.BORON_FRACTION_PPM] = self._proc_critb.get_cbore()
+        else:
+            raise NotImplementedError()
 
-        print("call PowField procedure", flush=True)
-        self._proc_solve.run(
-            fmap=self._fmap,
-            matex=self._matex,
-            flux=self._flux,
-            cpo=self._cpo,
-            track=self._track,
-            power=self._values[InputValue.POWER] * 1e-6,
-            cbore=self._values[InputValue.BORON_FRACTION_PPM],
-            )
-        print("PowField execution completed", flush=True)
-        self._flux = self._proc_solve.get_flux()
-        self._power = self._proc_solve.get_power()
+        self._flux = proc_solve.get_flux()
+        self._power = proc_solve.get_power()
         self._values[OutputValue.KEFF] = self._flux.keff
         self._values[OutputValue.REACTIVITY_STATIC] = self._flux.rho
 
@@ -206,30 +236,44 @@ class Problem(icoco.Problem):
         self._dt = None
 
         self._proc_boron.clean()
-        self._proc_solve.clean()
+        self._proc_stead.clean()
 
     def setStationaryMode(self, stationaryMode: bool) -> None:
         self._stationary_mode = stationaryMode
+        if not stationaryMode:
+            raise NotImplementedError("Only stationary mode is implemented.")
 
     def getStationaryMode(self) -> bool:
         return self._stationary_mode
 
-    def setInputDoubleValue(self, name: str, val: float) -> None:
+    def _setInputValue(self, name: str, val: str | int | float, method_name: str):
         if name in InputValue:
             self._values[name] = val
             return
         raise icoco.exception.WrongArgument(prob="LICoCorne",
                                             arg="name",
-                                            method="setInputDoubleValue",
-                                            condition=f"{name=} nor in {InputValue}")
+                                            method=method_name,
+                                            condition=f"{name=} not in {InputValue}")
 
-    def getOutputDoubleValue(self, name: str) -> float:
+    def _getOutputValue(self, name: str, method_name: str) -> str | int | float:
         if name in OutputValue:
             return self._values[name]
         raise icoco.exception.WrongArgument(prob="LICoCorne",
                                             arg="name",
-                                            method="getOutputDoubleValue",
-                                            condition=f"{name=} nor in {OutputValue}")
+                                            method=method_name,
+                                            condition=f"{name=} not in {OutputValue}")
+
+    def setInputStringValue(self, name: str, val: str) -> None:
+        return self._setInputValue(name, val, "setInputStringValue")
+
+    def getOutputStringValue(self, name: str) -> float:
+        return self._getOutputValue(name, "getOutputStringValue")
+
+    def setInputDoubleValue(self, name: str, val: float) -> None:
+        return self._setInputValue(name, val, "setInputDoubleValue")
+
+    def getOutputDoubleValue(self, name: str) -> float:
+        return self._getOutputValue(name, "getOutputDoubleValue")
 
     def getInputMEDDoubleFieldTemplate(self, name):
 
@@ -257,7 +301,7 @@ class Problem(icoco.Problem):
         raise icoco.exception.WrongArgument(prob="LICoCorne",
                                             arg="name",
                                             method="getInputMEDDoubleFieldTemplate",
-                                            condition=f"{name=} nor in {InputField}")
+                                            condition=f"{name=} not in {InputField}")
 
     def setInputMEDDoubleField(self, name, afield):
         if name in InputField:
@@ -285,7 +329,7 @@ class Problem(icoco.Problem):
         raise icoco.exception.WrongArgument(prob="LICoCorne",
                                             arg="name",
                                             method="setInputMEDDoubleField",
-                                            condition=f"{name=} nor in {InputField}")
+                                            condition=f"{name=} not in {InputField}")
 
     def getOutputMEDDoubleField(self, name):
 
@@ -297,7 +341,7 @@ class Problem(icoco.Problem):
         raise icoco.exception.WrongArgument(prob="LICoCorne",
                                             arg="name",
                                             method="getOutputMEDDoubleField",
-                                            condition=f"{name=} nor in {OutputField}")
+                                            condition=f"{name=} not in {OutputField}")
 
     def updateOutputMEDDoubleField(self, name, afield):
 
@@ -309,7 +353,7 @@ class Problem(icoco.Problem):
         raise icoco.exception.WrongArgument(prob="LICoCorne",
                                             arg="name",
                                             method="updateOutputMEDDoubleField",
-                                            condition=f"{name=} nor in {OutputField}")
+                                            condition=f"{name=} not in {OutputField}")
 
 
 def get_problem(working_directory: Path) -> Problem:

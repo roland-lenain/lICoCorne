@@ -1,5 +1,7 @@
 
 
+from pathlib import Path
+
 from ..procs import Procedure, ProcedureRunner
 from ..struct import Fmap
 
@@ -37,7 +39,7 @@ END: ;
 
 
 class SetBoronRunner(ProcedureRunner):
-    def __init__(self, working_directory):
+    def __init__(self, working_directory: Path):
         super().__init__(procedure=SetBoronProcedure(), working_directory=working_directory)
 
     def run(self, fmap: Fmap, cbore: float):

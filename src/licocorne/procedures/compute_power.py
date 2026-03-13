@@ -1,4 +1,6 @@
 
+from pathlib import Path
+
 from ..procs import Procedure, ProcedureRunner
 from ..struct import Cpo, Flux, Fmap, Matex, Track, Power
 
@@ -124,7 +126,7 @@ END: ;
 
 
 class ComputePowerRunner(ProcedureRunner):
-    def __init__(self, working_directory):
+    def __init__(self, working_directory: Path):
         super().__init__(procedure=ComputePowerProcedure(), working_directory=working_directory)
 
     def run(self, fmap: Fmap, matex: Matex, flux: Flux, cpo: Cpo, track: Track, power: float, cbore: float):
