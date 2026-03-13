@@ -48,12 +48,19 @@ if [ ! -d "${current_script_dir}/.venv_utils" ]; then
 fi
 . ${current_script_dir}/.venv_utils/bin/activate
 pip install --upgrade pip setuptools tox
+python_version=$(python3 -c 'import sys; print(".".join(map(str,sys.version_info[0:2])))')
+PyGan_PYTHONPATH="${project_root_dir}/extern/merlin/PyGan/lib/Linux_x86_64/python"
+if [ ! -d "${PyGan_PYTHONPATH}" ]; then
+    echo "'${PyGan_PYTHONPATH}' not found."
+    exit 1
+fi
+echo "${PyGan_PYTHONPATH}" > ${VIRTUAL_ENV}/lib/python${python_version}/site-packages/PyGan.pth
 
 # Tag the version
 git tag ${version_name}
 
 # install current version in venv
-python3 -m pip install --upgrade ${project_root_dir}/src
+python3 -m pip install --upgrade ${project_root_dir}
 
 # (cd ${project_root_dir} && tox)
 
@@ -75,10 +82,8 @@ if [[ "${answer}" == "y"* ]]; then
         rm -rf dist
     fi
     python3 -m pip install --upgrade build twine
-    pushd ${project_root_dir}/src
-        python3 -m build
-        python3 -m twine upload --repository pypi dist/*
-    popd
+    python3 -m build
+    python3 -m twine upload --repository pypi dist/*
 else
     echo "You pushed a version tag but this version has not been published!"
     exit 1
