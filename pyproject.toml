@@ -56,10 +56,10 @@ test = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/roland-lenain/dragon-python"
-Source = "https://github.com/roland-lenain/dragon-python"
-Documentation = "https://dragon-python.readthedocs.io/en/latest/index.html"
-Issues = "https://github.com/roland-lenain/dragon-python/issues"
+Homepage = "https://github.com/roland-lenain/lICoCorne"
+Source = "https://github.com/roland-lenain/lICoCorne"
+Documentation = "https://github.com/roland-lenain/lICoCorne"
+Issues = "https://github.com/roland-lenain/lICoCorne/issues"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

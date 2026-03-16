@@ -1,7 +1,6 @@
 /build/
 /dist/
 /.cache/
-/donjon/
 /*venv*/
 /.vscode/
 /tmp/
